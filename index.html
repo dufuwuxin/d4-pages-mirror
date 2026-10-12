@@ -1,4 +1,108 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>A股量化数据镜像</title>
-<meta http-equiv="refresh" content="0;url=https://qwerzxcva.github.io/stocks-ai-view/"></head>
-<body>主站: <a href="https://qwerzxcva.github.io/stocks-ai-view/">stocks-ai-view</a> |
-镜像数据: <a href="data/latest.json">data/latest.json</a></body></html>
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A股量化 · 镜像站</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--tx:#e6edf3;--tx2:#8b949e;--up:#e06c5a;--dn:#4caf7d;--accent:#58a6ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:14px}
+.hd{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #21262d}
+.hd b{font-size:16px}.hd .ts{color:var(--tx2);font-size:11px;margin-left:auto}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.tabs button{background:var(--card);color:var(--tx2);border:1px solid #21262d;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px}
+.tabs button.on{color:var(--tx);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid #21262d;border-radius:8px;padding:12px;margin-bottom:10px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:4px 8px;text-align:left;border-bottom:1px solid #21262d;white-space:nowrap}
+th{color:var(--tx2);font-weight:500}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px}
+.kpi{background:var(--card);border:1px solid #21262d;border-radius:8px;padding:10px;text-align:center}
+.kpi .v{font-size:18px;font-weight:600}.kpi .n{font-size:11px;color:var(--tx2)}
+.news{font-size:12px;line-height:1.7;max-height:300px;overflow-y:auto}
+.news div{padding:2px 0;border-bottom:1px dashed #21262d}
+.disc{color:var(--tx2);font-size:11px;padding:10px 0}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd"><b>📊 A股量化 · 镜像站</b>
+    <span class="ts" id="ts">—</span>
+    <a href="https://qwerzxcva.github.io/stocks-ai-view/" style="font-size:12px">主站→</a>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="tabs" id="tabs">
+    <button data-t="cloud" class="on">☁️ 云端推演</button>
+    <button data-t="aipick">AI 推荐</button>
+    <button data-t="zt">涨停池</button>
+    <button data-t="sector">行业资金</button>
+    <button data-t="news">资讯流</button>
+  </div>
+  <div class="card" id="view"><div class="news">加载中…</div></div>
+  <div class="disc">镜像站数据由双账号自动同步 (qwerzxcva ⇄ dufuwuxin) · 云端分析 = GitHub Actions 纯统计引擎 · 全部内容不构成投资建议 · A股T+1</div>
+</div>
+<script>
+let D = null, C = null;
+const esc = s => String(s==null?'—':s);
+function pct(v){const n=parseFloat(v);if(isNaN(n))return esc(v);return `<span class="${n>0?'up':(n<0?'dn':'')}">${n>0?'+':''}${n}%</span>`}
+function tbl(head, rows){return `<table><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table>`}
+const VIEWS = {
+  cloud: () => {
+    const f = (C&&C.index_forecast)||{};
+    let s = `<div style="margin-bottom:8px">引擎: ${esc(C&&C.engine)}<br>生成: ${esc(C&&C.ts)}</div>`;
+    s += `<div>明日展望: <b class="${f.bias==='偏多'?'up':(f.bias==='偏空'?'dn':'')}" style="font-size:16px">${esc(f.bias)}</b> (综合${esc(f.composite)})</div>`;
+    if(f.next_weekday_stat) s += `<div>下一交易日历史: 日均${f.next_weekday_stat.avg}% 胜率${f.next_weekday_stat.win}% (n=${f.next_weekday_stat.n})</div>`;
+    if(f.streak) s += `<div>${f.streak} → 续势概率 ${esc(f.streak_continue_prob)}% · 20日动量 ${esc(f.mom20)}%</div>`;
+    const th = (C&&C.theme_heat)||[];
+    if(th.length) s += `<div style="margin-top:6px">题材热度: ${th.slice(0,6).map(x=>`${esc(x[0])}×${x[1]}`).join(' · ')}</div>`;
+    const st = (C&&C.sector_top)||[];
+    if(st.length) s += `<div style="margin-top:6px">行业Top: ${st.slice(0,5).map(x=>`${esc(x.name)} ${x.chg}%`).join(' · ')}</div>`;
+    return s;
+  },
+  aipick: () => {
+    const p = (D&&D.ai_picks)||[];
+    return tbl(['代码','现价','涨幅','量比','240日位','评分'], p.slice(0,15).map(x=>[
+      esc((x.symbol||'').replace(/^sh|^sz/)), esc(x.close), pct(((x.ret||0)*100).toFixed(2)),
+      esc(x.vratio), esc(((x.pos240||0)*100).toFixed(0)+'%'), `<b>${esc((x.score||0).toFixed?x.score.toFixed(2):x.score)}</b>`]));
+  },
+  zt: () => {
+    const z = (D&&D.limit_up_pool)||[];
+    return tbl(['代码','名称','现价','涨幅','连板','首封'], z.slice(0,20).map(x=>[
+      esc((x.code||'').replace(/^sh|^sz/)), esc(x.name), esc(x.price), pct(x.chg_pct),
+      esc(x.lianban||''), esc(x.zt_time||'')]));
+  },
+  sector: () => {
+    const w = (D&&D.westock)||{}; const sr=(w.sector_ranking&&w.sector_ranking.data)||[];
+    return tbl(['行业','涨跌','主力净流入(万)','5日(万)','领涨股'], sr.slice(0,20).map(x=>[
+      esc(x.name), pct(x.changePct), esc(x.mainNetInflow), esc(x.mainNetInflow5d), esc(x.leader)]));
+  },
+  news: () => {
+    const n = (D&&D.news_recent)||[];
+    return `<div class="news">` + n.slice(0,50).map(x=>`<div>${esc((x.ts||'').slice(5,16))} <b>[${esc(x.src||'')}]</b> ${esc(x.title||x.text||'')}</div>`).join('') + '</div>';
+  }
+};
+function show(t){
+  document.getElementById('view').innerHTML = (VIEWS[t]||(()=>'<div class="news">无数据</div>'))();
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
+}
+document.getElementById('tabs').addEventListener('click', e=>{ if(e.target.tagName==='BUTTON') show(e.target.dataset.t); });
+Promise.all([
+  fetch('data/latest.json?t='+Date.now()).then(r=>r.json()),
+  fetch('data/cloud_analysis.json?t='+Date.now()).then(r=>r.json()).catch(()=>null)
+]).then(([d, c])=>{
+  D = d; C = c;
+  document.getElementById('ts').textContent = (d.ts||'').replace('T',' ').slice(0,16);
+  const m = d.market||{};
+  document.getElementById('kpis').innerHTML = [
+    ['上证', esc((d.market&&d.market.indices&&d.market.indices.sh000001&&d.market.indices.sh000001.price)||'—')],
+    ['涨停', esc(m.limit_up)], ['跌停', esc(m.limit_down)], ['封板率', esc(m.zt_rate)],
+    ['云推演', esc(c&&c.index_forecast&&c.index_forecast.bias)]
+  ].map(x=>`<div class="kpi"><div class="v">${x[1]}</div><div class="n">${x[0]}</div></div>`).join('');
+  show('cloud');
+}).catch(e=>{ document.getElementById('view').innerHTML = '加载失败: '+e; });
+</script>
+</body>
+</html>
